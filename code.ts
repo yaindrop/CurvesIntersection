@@ -17,9 +17,9 @@ const
 NUM_SECTIONS_TO_SOLVE_NAIVELY = 2,
 DECIMALS_TO_KEEP_FOR_POINT_ID = 4,
 threePointsCCW: (p1: point, p2: point, p3: point) => boolean = ([ax, ay], [bx, by], [cx, cy]) => 
-    (cy - ay) * (bx - ax) > (by - ay) * (cx - ax),
+    (cy - ay) * (bx - ax) > (by - ay) * (cx - ax), 
 twoSegmentsIntersect: (s1: segment, s2: segment) => boolean = ([a, b], [c, d]) => 
-    threePointsCCW(a, c, d) != threePointsCCW(b, c, d) && threePointsCCW(a, b, c) != threePointsCCW(a, b, d),
+    threePointsCCW(a, c, d) != threePointsCCW(b, c, d) && threePointsCCW(c, a, b) != threePointsCCW(d, a, b),
 pointInRect: (p: point, r: rect) => boolean = ([px, py], [[rminx, rminy], [rmaxx, rmaxy]]) => 
     px >= rminx && px <= rmaxx && py >= rminy && py <= rmaxy,
 segmentEndInRect: (s: segment, r: rect) => boolean = ([s0, s1], r) => 
@@ -65,12 +65,12 @@ quadrantIntersections: (q: Quadrant, selfIntersect: boolean) => [curve, curve, p
         checkedCurve.add(c1)
         segments.forEach(s1 => 
             entries.filter(([c2, _]) => selfIntersect || !checkedCurve.has(c2)).forEach(([c2, otherSegments]) => 
-            otherSegments.forEach(s2 => {
-                if ((!selfIntersect || !twoSegmentsConnected(s1, s2)) && twoSegmentsIntersect(s1, s2)) {
-                    const intersection = twoLinesIntersection(s1, s2)
-                    if (intersection) res.push([c1, c2, intersection]);
-                }
-            })))
+                otherSegments.forEach(s2 => {
+                    if ((!selfIntersect || !twoSegmentsConnected(s1, s2)) && twoSegmentsIntersect(s1, s2)) {
+                        const intersection = twoLinesIntersection(s1, s2)
+                        if (intersection) res.push([c1, c2, intersection]);
+                    }
+                })))
     })
     return res
 },
@@ -94,7 +94,7 @@ curveFitInRect: (c: curve) => rect = c =>
         [[Number.MAX_VALUE, Number.MAX_VALUE], [Number.MIN_VALUE, Number.MIN_VALUE]]),
 curveSegments: (c: curve) => Set<segment> = c => 
     new Set(c.filter((_, idx) => c[idx + 1]).map((p, idx) => [p, c[idx + 1]])),
-initQuads: (curves: curve[]) => Quadrant[] = curves => [{
+initQuadrantArray: (curves: curve[]) => Quadrant[] = curves => [{
     bounding: multipleRectsFitInRect(curves.map(curveFitInRect)), 
     curveToSegments: new Map(curves.map(c => [c, curveSegments(c)])),
     numEndInSections: curves.reduce((cumu, c) => cumu + c.length - 1, 0),
@@ -108,13 +108,13 @@ distinctArray: <T>(arr: T[], distinctId: (val: T) => string) => T[] = (arr, dist
         return true
     })
 },
-pointIdentifier: (p: point) => string = ([x, y]) => 
-    x.toFixed(DECIMALS_TO_KEEP_FOR_POINT_ID) + "," + y.toFixed(DECIMALS_TO_KEEP_FOR_POINT_ID),
+pointIdentifier: (p: point) => string = p => 
+    p.map(val => val.toFixed(DECIMALS_TO_KEEP_FOR_POINT_ID)).join(','),
 curveIntersections: (c: curve) => point[] = c => 
-    distinctArray(divideTillSolved(initQuads([c]), true).map(([_1, _2, i]) => i), pointIdentifier),
+    distinctArray(divideTillSolved(initQuadrantArray([c]), true).map(([_1, _2, i]) => i), pointIdentifier),
 twoCurvesIntersections: (c1: curve, c2: curve, selfIntersect?: boolean) => point[] = (c1, c2, selfIntersect = false) => 
-    distinctArray(divideTillSolved(initQuads([c1, c2]), selfIntersect).map(([_1, _2, i]) => i), pointIdentifier),
-resultIdentifierFactory: (curveToId: Map<curve, string>) => ((result: [curve, curve, point]) => string) = curveToId => 
-    ([c1, c2, i]) => Array(c1, c2).map(c => curveToId.get(c)!).sort().reduce((cumu, cid) => cumu + "," + cid, pointIdentifier(i)),
+    distinctArray(divideTillSolved(initQuadrantArray([c1, c2]), selfIntersect).map(([_1, _2, i]) => i), pointIdentifier),
+resultIdentifierFactory: (curveToCid: Map<curve, string>) => ((result: [curve, curve, point]) => string) = curveToCid => 
+    ([c1, c2, i]) => Array(c1, c2).map(c => curveToCid.get(c)!).sort().reduce((cumu, cid) => `${cumu},${cid}`, pointIdentifier(i)),
 multipleCurvesIntersections: (curves: curve[], selfIntersect?: boolean) => [curve, curve, point][] = (curves, selfIntersect = false) => 
-        distinctArray(divideTillSolved(initQuads(curves), selfIntersect), resultIdentifierFactory(new Map(curves.map((c, idx) => [c, `c${idx}`] ))))
+    distinctArray(divideTillSolved(initQuadrantArray(curves), selfIntersect), resultIdentifierFactory(new Map(curves.map((c, idx) => [c, `c${idx}`]))))
